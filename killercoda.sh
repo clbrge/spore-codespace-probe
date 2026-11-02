@@ -33,6 +33,11 @@ chown probe: /home/probe/probe-user.sh
 printf '\n##### as user probe, machine as Killercoda gives it\n'
 su - probe -c 'bash ~/probe-user.sh'
 
-printf '\n##### as user probe, after turning off the AppArmor user-namespace restriction\n'
-step sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-su - probe -c 'export PATH="$HOME/.npm-global/bin:/opt/node/bin:$PATH"; unshare -Ur true; echo "--- unshare exit $?"; spore doctor --report'
+printf '\n##### as user probe, after an AppArmor profile for confine alone\n'
+confine=$(find /home/probe/.npm-global/lib/node_modules/@rhizogrip -path '*/native/x64/confine' -type f | head -1)
+step echo "confine: $confine"
+printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile spore-confine "%s" flags=(unconfined) {\n  userns,\n}\n' "$confine" > /etc/apparmor.d/spore-confine
+step cat /etc/apparmor.d/spore-confine
+step apparmor_parser -r /etc/apparmor.d/spore-confine
+step cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+su - probe -c 'export PATH="$HOME/.npm-global/bin:/opt/node/bin:$PATH"; unshare -Ur true; echo "--- plain unshare exit $? (should fail: only confine is allowed)"; spore doctor --report'
